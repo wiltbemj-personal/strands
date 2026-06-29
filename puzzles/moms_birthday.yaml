@@ -1,0 +1,23 @@
+# Strands puzzle config — Mom's Birthday
+# Run: python generate_puzzle.py puzzles/moms_birthday.yaml
+
+theme: "Words That Describe Mom"
+
+# The spangram must span the grid from left edge to right edge.
+# It should capture the overall theme in one word or phrase.
+spangram: "WONDERFUL"
+
+# Theme words (6 words recommended, total letters + spangram must be ≤ 48)
+# WONDERFUL(9) + LOVING(6) + CARING(6) + FUNNY(5) + WISE(4) + WARM(4) + KIND(4) = 38 letters
+# That leaves 10 cells for fill letters — plenty of room.
+words:
+  - LOVING
+  - CARING
+  - FUNNY
+  - WISE
+  - WARM
+  - KIND
+
+# Optional metadata shown on the win screen
+author: "Your Name"
+date: "Mom's Birthday"

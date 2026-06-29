@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Strands Puzzle</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    :root {
+      --blue: #4a90e2;
+      --gold: #e8a020;
+      --bg: #faf8f4;
+      --surface: #ffffff;
+      --cell-bg: #e4ddd3;
+      --cell-sel: #aecff5;
+      --text: #1a1a1a;
+      --muted: #888;
+      --border: #e0d8cc;
+    }
+    html, body {
+      height: 100%;
+      overscroll-behavior: none;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      touch-action: none;
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px 8px;
+      text-align: center;
+    }
+    .game-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+    .game-theme {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .game-hint-line {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── Game container ── */
+    .game-wrap {
+      width: 100%;
+      max-width: 480px;
+      padding: 10px 10px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Hint bar ── */
+    .hint-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+      min-height: 36px;
+    }
+    .hint-dots {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .hint-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: #d0c8be;
+      transition: background 0.25s;
+    }
+    .hint-dot.lit { background: var(--blue); }
+    .hint-btn {
+      border: none;
+      background: var(--text);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      letter-spacing: 0.3px;
+    }
+    .hint-btn:disabled {
+      background: #ccc;
+      cursor: default;
+    }
+    .hint-count {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 70px;
+    }
+
+    /* ── Message bar ── */
+    .msg-bar {
+      min-height: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+      transition: opacity 0.3s;
+    }
+
+    /* ── Grid ── */
+    .grid-wrap {
+      position: relative;
+      width: 100%;
+      /* maintain 8:6 aspect ratio */
+      aspect-ratio: 8 / 6;
+    }
+    #the-grid {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: clamp(3px, 1.2vw, 6px);
+      padding: clamp(2px, 0.8vw, 4px);
+    }
+    .cell {
+      border-radius: 50%;
+      background: var(--cell-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(11px, 3.4vw, 17px);
+      font-weight: 800;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+      touch-action: none;
+      transition: background 0.12s, transform 0.1s;
+      will-change: background;
+    }
+    .cell.sel {
+      background: var(--cell-sel);
+      transform: scale(1.1);
+      z-index: 2;
+      position: relative;
+    }
+    .cell.found-theme   { background: var(--blue); color: #fff; }
+    .cell.found-spangram { background: var(--gold); color: #fff; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-5px); }
+      40%      { transform: translateX(5px); }
+      60%      { transform: translateX(-4px); }
+      80%      { transform: translateX(4px); }
+    }
+    @keyframes nonThemeFlash {
+      0%,100% { background: var(--cell-bg); }
+      40%     { background: #9ee09e; transform: scale(1.08); }
+    }
+    @keyframes hintPulse {
+      0%,100% { background: var(--cell-bg); }
+      30%,70% { background: #ffe066; transform: scale(1.12); }
+    }
+    @keyframes foundPop {
+      0%   { transform: scale(0.7); opacity: 0; }
+      60%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .shake        { animation: shake 0.38s; }
+    .non-flash    { animation: nonThemeFlash 0.55s; }
+    .hint-pulse   { animation: hintPulse 1.4s ease-in-out; }
+
+    /* SVG connector overlay */
+    #conn-svg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      overflow: visible;
+    }
+
+    /* ── Found words ── */
+    .found-section { width: 100%; }
+    .found-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 7px;
+    }
+    .found-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      justify-content: center;
+    }
+    .chip {
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      animation: foundPop 0.35s cubic-bezier(.34,1.56,.64,1);
+    }
+    .chip.theme    { background: var(--blue); color: #fff; }
+    .chip.spangram { background: var(--gold); color: #fff; }
+
+    /* ── Win overlay ── */
+    #win-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #win-overlay.show { display: flex; }
+    .win-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 28px 22px 22px;
+      max-width: 320px;
+      width: 100%;
+      text-align: center;
+      animation: foundPop 0.4s cubic-bezier(.34,1.56,.64,1);
+    }
+    .win-emoji { font-size: 52px; margin-bottom: 10px; }
+    .win-title { font-size: 26px; font-weight: 800; color: var(--text); }
+    .win-sub   { font-size: 14px; color: var(--muted); margin: 6px 0 14px; line-height: 1.5; }
+    .win-stats {
+      background: #f5f2ee;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #444;
+      line-height: 1.8;
+      margin-bottom: 14px;
+    }
+    .share-btn {
+      width: 100%;
+      border: none;
+      background: var(--text);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 13px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="game-eyebrow">Strands</div>
+  <div class="game-theme" id="game-theme"></div>
+  <div class="game-hint-line">Find all the words that fit the theme</div>
+</header>
+
+<div class="game-wrap">
+
+  <div class="hint-row">
+    <div class="hint-dots" id="hint-dots"></div>
+    <button class="hint-btn" id="hint-btn" disabled>Hint</button>
+    <span class="hint-count" id="hint-count"></span>
+  </div>
+
+  <div class="msg-bar" id="msg-bar"></div>
+
+  <div class="grid-wrap" id="grid-wrap">
+    <svg id="conn-svg"></svg>
+    <div id="the-grid"></div>
+  </div>
+
+  <div class="found-section" id="found-section" style="display:none">
+    <div class="found-label">Found</div>
+    <div class="found-chips" id="found-chips"></div>
+  </div>
+
+</div>
+
+<div id="win-overlay">
+  <div class="win-card">
+    <div class="win-emoji">🎉</div>
+    <div class="win-title">Puzzle solved!</div>
+    <div class="win-sub" id="win-sub"></div>
+    <div class="win-stats" id="win-stats"></div>
+    <button class="share-btn" id="share-btn">Share Result</button>
+  </div>
+</div>
+
+<script>
+const PUZZLE = {"theme": "Words That Describe Mom", "grid": [["W", "I", "O", "A", "O", "V", "G", "E"], ["S", "M", "R", "W", "L", "N", "I", "N"], ["E", "F", "D", "W", "G", "R", "U", "I"], ["R", "O", "N", "E", "R", "F", "R", "L"], ["W", "N", "U", "H", "D", "K", "A", "C"], ["G", "F", "N", "Y", "F", "N", "I", "C"]], "words": {"WONDERFUL": {"cells": [[4, 0], [3, 1], [3, 2], [2, 2], [3, 3], [3, 4], [3, 5], [2, 6], [3, 7]], "is_spangram": true}, "WARM": {"cells": [[1, 3], [0, 3], [1, 2], [1, 1]], "is_spangram": false}, "KIND": {"cells": [[4, 5], [5, 6], [5, 5], [4, 4]], "is_spangram": false}, "LOVING": {"cells": [[1, 4], [0, 4], [0, 5], [1, 6], [1, 5], [2, 4]], "is_spangram": false}, "WISE": {"cells": [[0, 0], [0, 1], [1, 0], [2, 0]], "is_spangram": false}, "FUNNY": {"cells": [[5, 1], [4, 2], [4, 1], [5, 2], [5, 3]], "is_spangram": false}, "CARING": {"cells": [[4, 7], [4, 6], [3, 6], [2, 7], [1, 7], [0, 6]], "is_spangram": false}}, "spangram": "WONDERFUL", "author": "Your Name", "date": "Mom's Birthday"};
+const WORD_SET = new Set(["abide", "ability", "ablaze", "able", "about", "above", "abrupt", "abuse", "abyss", "access", "ace", "ache", "ached", "acid", "acres", "act", "acute", "add", "added", "admit", "adult", "affair", "afford", "afraid", "after", "again", "agate", "age", "aged", "agile", "aging", "ago", "agony", "ahead", "aid", "aided", "aim", "aimed", "air", "aired", "aisle", "alarm", "album", "ale", "alert", "algae", "alien", "align", "alive", "all", "alley", "allow", "alloy", "aloft", "alone", "along", "aloof", "aloud", "also", "altar", "alter", "alto", "amaze", "amble", "amend", "amiss", "among", "ample", "amuse", "angel", "angry", "anime", "ankle", "annex", "annoy", "ant", "antic", "anvil", "aorta", "apart", "ape", "aphid", "apple", "apply", "apron", "apt", "aptly", "arc", "arcane", "arch", "ardor", "are", "area", "arena", "argue", "aria", "arise", "ark", "arm", "armor", "army", "array", "arson", "art", "ash", "aside", "ask", "asked", "askew", "aspen", "assay", "asset", "ate", "atlas", "atone", "attic", "audio", "aunt", "avail", "avert", "avid", "avoid", "await", "awake", "awash", "awe", "awful", "awoke", "axe", "axial", "aye", "azure", "back", "bad", "bade", "badge", "badly", "bag", "bagel", "bail", "baked", "baker", "bale", "baler", "ball", "balls", "balm", "balsa", "ban", "banal", "band", "bane", "bang", "banjo", "bank", "bar", "barn", "baron", "base", "bash", "basic", "basis", "bask", "bast", "bat", "batch", "bath", "bathe", "baton", "bauble", "bay", "beach", "bead", "beady", "beak", "beam", "bean", "beard", "beast", "beat", "bed", "bedew", "been", "beet", "beg", "begat", "beige", "bell", "belle", "below", "belt", "bench", "bend", "berry", "best", "bet", "bevel", "bias", "bid", "big", "bike", "bill", "bind", "binge", "birch", "birth", "bit", "bite", "black", "blade", "blame", "bland", "blank", "blast", "blaze", "bleak", "bleat", "bled", "bleed", "blend", "bless", "blew", "blind", "bliss", "blob", "bloc", "block", "blood", "bloom", "blot", "blow", "blown", "blue", "blunt", "blur", "blurb", "blush", "boar", "board", "boast", "boat", "body", "boggy", "bold", "bolt", "bolts", "bond", "bone", "bonus", "book", "boom", "boon", "boot", "booty", "borax", "bore", "born", "botch", "bound", "bout", "bow", "bowl", "box", "boxer", "boy", "brag", "braid", "brain", "brake", "bran", "brand", "brash", "brat", "brave", "brawl", "braze", "brazen", "breed", "breve", "brew", "bride", "brief", "brim", "brine", "brink", "brisk", "broad", "broil", "broke", "brood", "broth", "brow", "brown", "brows", "brush", "brusk", "brute", "buck", "bud", "budge", "bug", "buggy", "built", "bulge", "bulk", "bull", "bump", "bun", "bunk", "bunt", "buoy", "burgh", "burn", "burp", "burr", "bury", "bus", "bush", "bushy", "busy", "but", "buy", "buzz", "cab", "cable", "cage", "cake", "call", "calm", "came", "camel", "can", "candy", "cane", "canny", "canoe", "canon", "cap", "cape", "caper", "caput", "car", "card", "care", "cargo", "carol", "carry", "cart", "case", "cash", "cast", "cat", "cause", "cave", "cell", "cent", "chafe", "chair", "chalk", "champ", "chant", "chaos", "chap", "char", "chard", "charm", "chase", "chat", "cheap", "cheat", "check", "cheek", "cheep", "cheer", "chef", "chess", "chest", "chew", "chide", "child", "chill", "chin", "chip", "chirp", "choir", "chop", "chord", "chose", "chow", "chunk", "civic", "civil", "clack", "clad", "claim", "clam", "clan", "clang", "clap", "clash", "clasp", "claw", "clay", "cleat", "clef", "cleft", "clerk", "click", "clime", "clink", "clip", "clock", "clog", "clone", "clop", "close", "clot", "cloth", "cloud", "clout", "clown", "club", "clue", "coal", "coarsen", "coat", "cob", "cobra", "cod", "cog", "coil", "coils", "coin", "coins", "cold", "color", "colt", "come", "comet", "comic", "comma", "conch", "condo", "cone", "cook", "cool", "cop", "cope", "cord", "core", "cork", "corn", "cost", "cot", "could", "court", "cover", "cow", "cozy", "craft", "cram", "cramp", "crane", "craw", "creak", "cream", "creek", "crest", "crew", "crimp", "crisp", "crop", "cross", "crow", "crowd", "crown", "crud", "crude", "cruel", "crumb", "crush", "crust", "crux", "crypt", "cub", "cube", "cuff", "cup", "cure", "curl", "curly", "curt", "curve", "cut", "cute", "dab", "daily", "dairy", "daisy", "dam", "damp", "dance", "dare", "dared", "dark", "darn", "dart", "dash", "data", "date", "daunt", "dawn", "days", "dead", "deaf", "deal", "dealt", "dean", "dear", "debut", "decal", "decay", "decoy", "decry", "deed", "deem", "deep", "dell", "delta", "dent", "depot", "depth", "derby", "desk", "devil", "dew", "dewdrop", "diary", "dice", "did", "diet", "dig", "digit", "dill", "dim", "dime", "dine", "ding", "dingo", "dip", "dire", "dirty", "disco", "disk", "ditty", "dive", "dizzy", "dock", "dodge", "doe", "dog", "doing", "dolly", "dome", "done", "door", "dot", "dote", "dove", "down", "drab", "draft", "drag", "drain", "drake", "drape", "drawl", "drawn", "dread", "dream", "dregs", "drift", "drink", "drip", "drive", "droit", "droop", "drop", "drove", "drown", "drug", "drum", "dry", "dryer", "dub", "duchy", "dud", "duel", "duet", "dug", "dull", "dummy", "dunce", "dune", "dunk", "duple", "dusk", "dust", "dusty", "duty", "dwarf", "dwell", "dye", "dying", "each", "eager", "eagle", "ear", "early", "earn", "earthy", "ease", "east", "eat", "eaten", "ebony", "eclat", "edema", "edge", "edged", "edict", "eerie", "egg", "eight", "eject", "elf", "elite", "elk", "elm", "elope", "else", "embed", "emery", "emit", "empty", "emu", "enact", "end", "endow", "enemy", "enjoy", "ensue", "entry", "envoy", "epic", "equip", "era", "error", "essay", "etude", "evade", "eve", "even", "event", "ever", "every", "evict", "evil", "evoke", "ewe", "exact", "exalt", "exam", "exert", "exile", "exist", "expel", "extol", "extra", "eye", "fable", "face", "facet", "fad", "fade", "fail", "faint", "fair", "faith", "fake", "fall", "false", "fame", "fan", "fancy", "fang", "far", "farce", "fare", "farm", "fast", "fat", "fatal", "fate", "fawn", "fax", "faze", "feast", "feat", "feeble", "feed", "feel", "feet", "fell", "felt", "fend", "feral", "fetch", "feud", "fever", "fewer", "fiber", "field", "fiend", "fife", "fifth", "fifty", "fight", "file", "fill", "film", "filmy", "final", "find", "fine", "finer", "fire", "firm", "first", "fish", "fishy", "fist", "five", "fixed", "fjord", "flag", "flak", "flame", "flare", "flash", "flask", "flat", "flaunt", "flaw", "flea", "fled", "fleet", "flesh", "flex", "flick", "flier", "flip", "flit", "flock", "floor", "flop", "flora", "floss", "flour", "flout", "flow", "flown", "fluff", "fluid", "fluke", "flume", "flung", "flunk", "flute", "flyer", "foam", "foamy", "focal", "foci", "foe", "fog", "fold", "folk", "folly", "fond", "font", "fool", "for", "force", "ford", "fore", "forge", "forgo", "fork", "form", "forme", "fort", "forth", "foul", "found", "four", "fowl", "fox", "foyer", "frail", "frame", "franc", "frank", "fraud", "fray", "freak", "free", "freed", "fresh", "fret", "from", "froze", "frugal", "fruit", "frump", "fry", "fuel", "full", "fully", "fume", "fun", "fund", "funky", "funny", "fur", "fury", "fuse", "fuss", "fuzzy", "gag", "gaily", "gain", "gale", "gall", "gap", "garb", "gas", "gash", "gaudy", "gauge", "gauze", "gave", "gay", "gaze", "gel", "geld", "gem", "gent", "get", "gift", "gig", "gild", "gill", "gist", "give", "given", "gizmo", "glad", "glair", "gland", "glare", "glaze", "gleam", "glean", "glee", "glen", "glib", "glide", "glint", "gloat", "globe", "gloom", "glop", "glory", "gloss", "glove", "glow", "glue", "glyph", "gnat", "gnu", "goad", "goat", "god", "gold", "golf", "gone", "good", "gore", "gory", "got", "gown", "grab", "grace", "grade", "graft", "grail", "grain", "gram", "grasp", "grassy", "gravel", "graze", "greed", "green", "greet", "grin", "grip", "grit", "groan", "groin", "groom", "group", "grove", "grow", "growl", "grub", "gruel", "gruff", "guard", "guile", "guise", "gulf", "gull", "gulp", "gum", "gun", "gust", "gusto", "gusty", "gut", "guts", "guy", "gym", "gyms", "gypsy", "habit", "hack", "had", "half", "hall", "halt", "ham", "hand", "hang", "hard", "hare", "harm", "harp", "harsh", "has", "hash", "haste", "hasty", "hat", "hate", "haul", "have", "haven", "haw", "hawk", "hay", "haze", "hazel", "head", "heady", "heal", "heap", "hear", "heart", "heat", "heavy", "heel", "hefty", "held", "helix", "helm", "help", "hem", "hen", "hence", "her", "herb", "herbs", "herd", "hero", "hew", "hid", "hide", "high", "hike", "hill", "hilly", "him", "hint", "hippo", "hire", "his", "hit", "hive", "hoax", "hob", "hoe", "hog", "hoist", "hole", "holly", "holy", "home", "homer", "honor", "hood", "hoof", "hook", "hop", "hope", "hopeful", "horn", "hornet", "host", "hotel", "hound", "hour", "hover", "how", "howl", "hub", "hue", "hug", "hulk", "hull", "hum", "human", "humor", "humus", "hunch", "hung", "hunt", "hurry", "hurt", "husk", "husky", "hut", "hymn", "hypno", "ice", "icing", "icon", "ideal", "idiom", "idle", "igloo", "ilk", "illy", "image", "imp", "imply", "inch", "incur", "indie", "infer", "ink", "inner", "input", "inter", "into", "intro", "ion", "irate", "ire", "iris", "isle", "issue", "itch", "itchy", "item", "ivory", "ivy", "jab", "jade", "jag", "jail", "jam", "jar", "jaunt", "jaw", "jay", "jazzy", "jest", "jet", "jewel", "jibe", "jiffy", "jig", "job", "join", "joke", "jolt", "jot", "joust", "joy", "jug", "juice", "juicy", "jumbo", "jumpy", "junk", "just", "jut", "kayak", "keel", "keen", "keep", "keg", "kept", "kick", "kid", "kin", "kind", "king", "kinky", "kit", "kitty", "klutz", "knack", "knave", "knee", "kneel", "knelt", "knew", "knife", "knob", "knoll", "knot", "know", "known", "koala", "label", "lace", "lack", "lag", "laid", "lake", "lame", "lamp", "lane", "lap", "lard", "large", "lark", "lash", "last", "late", "later", "lathe", "laud", "law", "lawn", "lax", "lay", "lead", "leaf", "lean", "leap", "led", "left", "leg", "lend", "lens", "lent", "lest", "let", "levy", "liar", "lid", "lied", "lien", "lieu", "light", "like", "lime", "limit", "limp", "line", "linen", "liner", "link", "lint", "lion", "lip", "lire", "list", "lit", "lithe", "live", "liver", "livid", "load", "loaf", "loam", "loan", "lock", "loft", "lofty", "log", "lone", "long", "loom", "loon", "loony", "loop", "lore", "lorn", "lose", "loss", "loud", "lout", "love", "lover", "low", "lowly", "lucid", "lucky", "lug", "lull", "lunar", "lunch", "lure", "lurk", "lush", "lust", "lusty", "luxe", "lying", "lyric", "mad", "made", "magic", "maid", "main", "major", "make", "maker", "male", "mall", "malt", "mambo", "man", "mane", "mania", "manor", "map", "maple", "mar", "march", "mare", "mark", "marry", "marsh", "mart", "massy", "mast", "mat", "match", "mate", "math", "maw", "may", "maybe", "maze", "mead", "meal", "mealy", "mean", "meaty", "meet", "meld", "melon", "melt", "memo", "men", "mend", "merci", "mercy", "mere", "mesh", "messy", "met", "metal", "meter", "might", "mild", "mile", "milky", "mill", "mime", "mine", "mint", "minty", "mire", "mirky", "miss", "mist", "mixed", "mixer", "moan", "moat", "mob", "mock", "mod", "mode", "model", "mogul", "moist", "mold", "mole", "molt", "mom", "money", "monk", "month", "mood", "moody", "moor", "moose", "moot", "mop", "more", "morn", "mort", "most", "moth", "mourn", "mouse", "move", "much", "muck", "mucky", "mud", "muddy", "mug", "muggy", "mulch", "mull", "mummy", "murky", "muse", "mushy", "musk", "must", "musty", "myth", "nag", "nail", "name", "nap", "nape", "narc", "nark", "nasal", "nasty", "naval", "nave", "navy", "near", "neat", "need", "needy", "neon", "nest", "never", "newly", "next", "nice", "nick", "nigh", "ninety", "ninja", "nip", "nit", "noble", "nod", "node", "noisy", "none", "noon", "nor", "norm", "north", "nose", "not", "notch", "note", "noun", "novel", "novice", "now", "nudge", "numb", "nun", "nurse", "nutty", "nymph", "oafs", "oak", "oar", "obey", "occur", "octet", "odd", "ode", "odor", "off", "offal", "oft", "often", "oil", "okay", "old", "olive", "omen", "omit", "once", "onion", "only", "onto", "onyx", "open", "opera", "optic", "orb", "orbit", "orca", "orchid", "order", "ore", "organ", "other", "otter", "ought", "our", "out", "outdo", "outer", "outgo", "outrun", "outset", "ovary", "oven", "over", "ovoid", "owe", "owed", "owing", "owl", "own", "oxen", "oxide", "ozone", "pace", "pack", "pact", "pad", "paddy", "pagan", "page", "paid", "pain", "pair", "pal", "pale", "palm", "pan", "pang", "pansy", "pant", "park", "part", "party", "pass", "past", "pasta", "patch", "path", "patio", "patsy", "pave", "paved", "paw", "pawl", "pay", "peach", "peak", "peal", "peat", "peck", "pedal", "peel", "peer", "peg", "pelt", "pen", "penal", "penny", "pep", "perch", "peril", "perk", "perky", "pest", "pet", "petty", "phase", "phone", "photo", "piano", "pick", "picky", "pie", "pier", "pig", "pile", "pill", "pilot", "pin", "pinch", "piney", "pinky", "pirate", "pit", "pitch", "pithy", "pity", "pixie", "pizza", "place", "plaid", "plain", "plan", "plane", "plank", "plant", "plasm", "play", "plaza", "plead", "pleat", "plod", "plop", "plot", "plow", "ploy", "plug", "plum", "plumb", "plume", "plump", "plunk", "plus", "plush", "ply", "pod", "poem", "poet", "poker", "polar", "polka", "poll", "polo", "pond", "pony", "pooch", "pool", "poor", "pop", "pope", "poppy", "pore", "pork", "porky", "port", "pose", "posh", "post", "pot", "pour", "pout", "pow", "prank", "pray", "prep", "press", "prey", "pride", "prig", "prim", "prime", "primp", "prism", "prize", "pro", "probe", "prod", "prong", "proof", "prop", "prose", "proud", "prow", "prowl", "prude", "prune", "psalm", "pub", "pudgy", "puffy", "pull", "pully", "pulpy", "pulse", "pump", "pun", "punch", "punk", "puny", "pup", "pupil", "pure", "purse", "pus", "push", "put", "quay", "query", "queue", "quick", "quiet", "quirk", "quit", "quota", "quote", "rabbi", "race", "rack", "rag", "rain", "rainy", "rake", "rally", "ram", "ramen", "ramp", "ran", "ranch", "rang", "rangy", "rank", "rant", "rap", "rape", "rapid", "rash", "raspy", "rat", "rate", "ratio", "ratty", "rave", "raven", "raw", "ray", "rayon", "rays", "razed", "reach", "ready", "realm", "ream", "reap", "rebel", "rebus", "recur", "red", "reedy", "ref", "regal", "reign", "rein", "relax", "rely", "rend", "rent", "rep", "repay", "repel", "reply", "rest", "retro", "retry", "reuse", "rev", "revel", "rib", "rice", "rich", "rid", "ride", "rife", "rift", "rig", "ring", "riot", "rip", "ripen", "risky", "rivet", "roast", "rob", "robe", "robot", "rocky", "rod", "rodeo", "role", "roll", "romp", "roof", "rook", "room", "root", "rope", "rose", "rosy", "rot", "rouge", "rough", "round", "rouse", "rout", "rove", "row", "rowdy", "royal", "rub", "ruddy", "rugby", "ruin", "rule", "ruler", "runic", "ruse", "rush", "rust", "rusty", "rut", "rye", "sac", "sad", "sadly", "sag", "sage", "sail", "saint", "sale", "salt", "salty", "same", "sand", "sandy", "sane", "sang", "sank", "sap", "sappy", "sash", "sat", "sauce", "saucy", "save", "savor", "savvy", "saw", "say", "scalp", "scaly", "scamp", "scan", "scant", "scar", "scary", "scene", "scoff", "scone", "scoop", "scorch", "score", "scorn", "scout", "scowl", "scram", "scrap", "screw", "scrub", "sea", "seal", "seam", "sear", "seed", "seedy", "seek", "self", "sell", "semi", "send", "sense", "sent", "serf", "serum", "set", "seven", "sew", "shack", "shade", "shady", "shaft", "shaky", "shale", "shall", "shame", "shape", "share", "sharp", "shave", "shawl", "shed", "sheep", "sheer", "sheet", "shelf", "shell", "shift", "shin", "shiny", "ship", "shirk", "shock", "shore", "short", "shot", "shout", "shove", "show", "showy", "shrub", "shrug", "shuck", "shunt", "shush", "shy", "sick", "side", "sigh", "silk", "sill", "silt", "sin", "since", "sinew", "sip", "sir", "sire", "sit", "site", "sixth", "sixty", "size", "skate", "sketchy", "ski", "skill", "skim", "skimp", "skip", "skirm", "skirt", "sky", "slab", "slack", "slag", "slain", "slake", "slam", "slang", "slap", "slash", "slat", "slaw", "sled", "sleek", "sleep", "sleet", "slew", "slice", "slid", "slide", "slim", "slime", "slimy", "slip", "slope", "slosh", "slot", "sloth", "slow", "slug", "slum", "slunk", "slur", "slurp", "sly", "smack", "small", "smart", "smash", "smear", "smell", "smelt", "smile", "smirk", "smite", "smith", "smock", "smog", "smoke", "smoky", "snack", "snail", "snake", "snap", "snare", "snark", "sneak", "sneer", "sniff", "snob", "snore", "snowy", "snuck", "snug", "soak", "soar", "sob", "sock", "sod", "sofa", "soft", "soggy", "soil", "solar", "sold", "sole", "solve", "some", "son", "song", "sonic", "soot", "sore", "sorry", "sort", "soul", "south", "sovereign", "sow", "soy", "spa", "space", "spade", "span", "spare", "spark", "spat", "spawn", "spear", "speck", "speed", "spell", "spice", "spill", "spin", "spine", "spire", "spit", "splash", "splat", "spleen", "spoil", "spoke", "spook", "spool", "spoon", "sport", "spot", "spout", "spray", "spun", "spur", "spy", "squad", "squat", "squib", "squid", "stab", "stag", "stain", "stale", "stall", "stank", "star", "stare", "stark", "start", "stash", "stave", "stay", "steal", "steam", "steed", "steel", "steep", "steer", "stein", "stem", "step", "stern", "stew", "stir", "stoic", "stomp", "stony", "stood", "stool", "stop", "storm", "story", "stout", "stove", "stow", "straw", "stray", "strip", "strut", "stub", "stuck", "stud", "study", "stump", "stung", "stunk", "sty", "style", "suave", "sub", "such", "sue", "sugar", "suit", "suite", "sulk", "sultry", "sum", "sumac", "sun", "sung", "sunk", "sunny", "sup", "super", "sure", "surge", "surly", "swab", "swam", "swamp", "swan", "swap", "swat", "swear", "sweat", "sweep", "sweet", "swell", "swept", "swill", "swipe", "swirl", "swoon", "sword", "swum", "syrup", "tab", "tabby", "tack", "tacky", "taffy", "tail", "tale", "talk", "tall", "tame", "tan", "tang", "tangy", "tank", "tap", "tape", "tapir", "tar", "tart", "task", "taunt", "taupe", "tawny", "tax", "tea", "teal", "team", "teem", "tell", "ten", "tend", "tense", "tepid", "term", "test", "text", "than", "thank", "that", "the", "them", "then", "they", "thick", "thin", "thorn", "those", "three", "threw", "throw", "thumb", "tidal", "tide", "tie", "tied", "tiger", "tight", "tilde", "till", "time", "tin", "tinge", "tiny", "tip", "tipsy", "tire", "tired", "toad", "today", "toe", "toil", "told", "toll", "tome", "tonal", "tong", "tonic", "too", "took", "tooth", "top", "topaz", "torn", "toss", "touch", "tough", "tour", "tow", "towel", "town", "toxic", "toy", "trail", "train", "trait", "tramp", "trap", "tray", "tree", "trim", "trio", "trip", "trod", "trot", "trout", "trove", "truck", "true", "truly", "trump", "truss", "truth", "try", "tub", "tug", "tulip", "tumor", "tune", "tunic", "turf", "turn", "tutor", "tweed", "tweet", "twice", "twig", "twill", "twirl", "twist", "two", "tying", "type", "udder", "ugly", "ulcer", "ultra", "uncut", "under", "unfit", "union", "unite", "until", "upon", "upper", "upset", "urban", "urn", "usage", "use", "used", "usher", "utter", "vague", "vain", "vale", "van", "vane", "vapor", "vary", "vast", "vat", "vault", "vaunt", "veil", "vein", "vend", "very", "vest", "veto", "via", "vie", "view", "vigor", "vile", "vim", "vine", "viper", "viral", "visa", "visor", "vista", "vivid", "vocal", "vogue", "void", "vote", "vow", "vowed", "vowel", "vulva", "wacky", "wade", "wag", "wail", "wait", "walk", "wall", "waltz", "wand", "wane", "war", "ward", "ware", "warm", "warp", "wars", "wart", "wary", "was", "wash", "wasp", "wave", "wax", "way", "weak", "weal", "wean", "weary", "web", "wed", "weed", "weedy", "weep", "weird", "weld", "well", "welt", "went", "west", "whack", "whale", "when", "whiff", "whim", "whip", "who", "whole", "whose", "why", "widen", "wider", "wig", "wile", "will", "wilt", "wily", "wimpy", "win", "wind", "windy", "wine", "wing", "wink", "wiry", "wish", "wisp", "wits", "witty", "woe", "wok", "woken", "wolf", "womb", "won", "woo", "wood", "word", "wordy", "wore", "worm", "worn", "worse", "worst", "worth", "would", "wove", "wrath", "wreak", "wring", "wrist", "writ", "wrong", "wrote", "yacht", "yak", "yam", "yap", "yaw", "yearn", "yell", "yep", "yet", "yore", "you", "zap", "zeal", "zen", "zesty", "zip", "zippy", "zombie", "zone", "zoo"]);
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const ROWS = 6, COLS = 8;
+const CREDITS_PER_HINT = 3;
+
+// ── State ────────────────────────────────────────────────────────────────────
+const S = {
+  sel: [],            // [{r,c}] currently selected
+  dragging: false,
+  foundWords: new Set(),
+  foundCells: new Set(),   // "r,c"
+  hintCredits: 0,
+  hintsUsed: 0,
+  startTime: Date.now(),
+};
+
+// ── DOM ──────────────────────────────────────────────────────────────────────
+const gridEl      = document.getElementById('the-grid');
+const svgEl       = document.getElementById('conn-svg');
+const hintDotsEl  = document.getElementById('hint-dots');
+const hintBtn     = document.getElementById('hint-btn');
+const hintCount   = document.getElementById('hint-count');
+const msgBar      = document.getElementById('msg-bar');
+const foundSec    = document.getElementById('found-section');
+const foundChips  = document.getElementById('found-chips');
+const winOverlay  = document.getElementById('win-overlay');
+const shareBtn    = document.getElementById('share-btn');
+
+document.getElementById('game-theme').textContent = PUZZLE.theme;
+
+// ── Build cell lookup ────────────────────────────────────────────────────────
+// word → Set of "r,c"  (for display after found)
+const wordCellMap = {};
+for (const [w, d] of Object.entries(PUZZLE.words)) {
+  wordCellMap[w] = new Set(d.cells.map(([r,c]) => `${r},${c}`));
+}
+const totalWords = Object.keys(PUZZLE.words).length;
+
+// ── Render grid ──────────────────────────────────────────────────────────────
+const cellEls = {};  // "r,c" → element
+
+(function buildGrid() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const el = document.createElement('div');
+      el.className = 'cell';
+      el.textContent = PUZZLE.grid[r][c];
+      el.dataset.r = r;
+      el.dataset.c = c;
+      gridEl.appendChild(el);
+      cellEls[`${r},${c}`] = el;
+    }
+  }
+})();
+
+// ── Pointer interaction ───────────────────────────────────────────────────────
+function cellAt(x, y) {
+  let el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  if (!el.classList.contains('cell') && el.parentElement && el.parentElement.classList.contains('cell'))
+    el = el.parentElement;
+  return el.classList.contains('cell') ? el : null;
+}
+
+function key(el) { return `${el.dataset.r},${el.dataset.c}`; }
+
+function adjacent(a, b) {
+  return Math.abs(+a.dataset.r - +b.dataset.r) <= 1 &&
+         Math.abs(+a.dataset.c - +b.dataset.c) <= 1 &&
+         a !== b;
+}
+
+function lastSelEl() {
+  if (!S.sel.length) return null;
+  const {r,c} = S.sel[S.sel.length-1];
+  return cellEls[`${r},${c}`];
+}
+
+gridEl.addEventListener('pointerdown', e => {
+  const el = cellAt(e.clientX, e.clientY);
+  if (!el || S.foundCells.has(key(el))) return;
+  e.preventDefault();
+  S.dragging = true;
+  S.sel = [{r: +el.dataset.r, c: +el.dataset.c}];
+  el.setPointerCapture(e.pointerId);
+  refreshCells();
+  drawConnector();
+});
+
+gridEl.addEventListener('pointermove', e => {
+  if (!S.dragging) return;
+  e.preventDefault();
+  const el = cellAt(e.clientX, e.clientY);
+  if (!el || S.foundCells.has(key(el))) return;
+  const last = lastSelEl();
+  if (!last) return;
+
+  const existIdx = S.sel.findIndex(c => c.r == +el.dataset.r && c.c == +el.dataset.c);
+  if (existIdx >= 0) {
+    // Allow backtracking
+    if (existIdx < S.sel.length - 1) {
+      S.sel = S.sel.slice(0, existIdx + 1);
+      refreshCells();
+      drawConnector();
+    }
+  } else if (adjacent(last, el)) {
+    S.sel.push({r: +el.dataset.r, c: +el.dataset.c});
+    refreshCells();
+    drawConnector();
+  }
+});
+
+window.addEventListener('pointerup',     () => { if (S.dragging) { S.dragging = false; submit(); } });
+window.addEventListener('pointercancel', () => { S.dragging = false; clearSel(); });
+
+// ── Selection helpers ─────────────────────────────────────────────────────────
+function clearSel() { S.sel = []; refreshCells(); drawConnector(); }
+
+function refreshCells() {
+  const selSet = new Set(S.sel.map(({r,c}) => `${r},${c}`));
+  for (const [k, el] of Object.entries(cellEls)) {
+    el.classList.toggle('sel', selSet.has(k) && !S.foundCells.has(k));
+  }
+}
+
+function selWord() {
+  return S.sel.map(({r,c}) => PUZZLE.grid[r][c]).join('');
+}
+
+// ── Submission ────────────────────────────────────────────────────────────────
+function submit() {
+  if (S.sel.length < 3) { clearSel(); return; }
+
+  const word = selWord();
+
+  // Theme word match
+  if (PUZZLE.words[word] && !S.foundWords.has(word)) {
+    const isSpangram = PUZZLE.words[word].is_spangram;
+    markFound(word, isSpangram);
+    clearSel();
+    return;
+  }
+
+  // Non-theme dictionary word → hint credit
+  if (WORD_SET.has(word) && !S.foundWords.has(word)) {
+    nonThemeFound(word);
+    return;
+  }
+
+  // Wrong
+  animateCells(S.sel.map(({r,c}) => cellEls[`${r},${c}`]), 'shake', 380);
+  clearSel();
+}
+
+function markFound(word, isSpangram) {
+  S.foundWords.add(word);
+  for (const [r,c] of PUZZLE.words[word].cells) {
+    const k = `${r},${c}`;
+    S.foundCells.add(k);
+    const el = cellEls[k];
+    el.classList.remove('sel');
+    el.classList.add(isSpangram ? 'found-spangram' : 'found-theme');
+  }
+  showMsg(isSpangram ? '✨ Spangram!' : '🎯 ' + cap(word));
+  addChip(word, isSpangram);
+  drawConnector();
+  if (S.foundWords.size === totalWords) setTimeout(showWin, 700);
+}
+
+function nonThemeFound(word) {
+  S.foundWords.add(word);
+  S.hintCredits++;
+  const cells = S.sel.map(({r,c}) => cellEls[`${r},${c}`]);
+  animateCells(cells, 'non-flash', 560);
+  showMsg(`"${cap(word)}" +1 hint credit`);
+  refreshHintUI();
+  setTimeout(clearSel, 80);
+}
+
+function animateCells(els, cls, duration) {
+  for (const el of els) {
+    el.classList.remove(cls);
+    void el.offsetWidth; // reflow to restart animation
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), duration);
+  }
+}
+
+// ── Hints ─────────────────────────────────────────────────────────────────────
+function refreshHintUI() {
+  const avail = Math.floor(S.hintCredits / CREDITS_PER_HINT);
+  const rem   = S.hintCredits % CREDITS_PER_HINT;
+
+  hintDotsEl.innerHTML = '';
+  for (let i = 0; i < CREDITS_PER_HINT; i++) {
+    const d = document.createElement('div');
+    d.className = 'hint-dot' + (i < rem ? ' lit' : '');
+    hintDotsEl.appendChild(d);
+  }
+  hintBtn.disabled = avail === 0;
+  hintCount.textContent = avail > 0 ? `${avail} hint${avail > 1 ? 's' : ''}` : '';
+}
+
+hintBtn.addEventListener('click', () => {
+  const avail = Math.floor(S.hintCredits / CREDITS_PER_HINT);
+  if (avail === 0) return;
+
+  const unfound = Object.entries(PUZZLE.words).filter(([w]) => !S.foundWords.has(w));
+  if (!unfound.length) return;
+
+  S.hintCredits -= CREDITS_PER_HINT;
+  S.hintsUsed++;
+  refreshHintUI();
+
+  const [word, data] = unfound[Math.floor(Math.random() * unfound.length)];
+  const cells = data.cells.map(([r,c]) => cellEls[`${r},${c}`]);
+  animateCells(cells, 'hint-pulse', 1400);
+  showMsg(`Hint: look for "${cap(word)}"`);
+});
+
+// ── SVG connector ─────────────────────────────────────────────────────────────
+function drawConnector() {
+  svgEl.innerHTML = '';
+  if (S.sel.length < 2) return;
+
+  const wRect = document.getElementById('grid-wrap').getBoundingClientRect();
+  const pts = S.sel.map(({r,c}) => {
+    const rect = cellEls[`${r},${c}`].getBoundingClientRect();
+    return { x: rect.left + rect.width/2 - wRect.left,
+             y: rect.top  + rect.height/2 - wRect.top };
+  });
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const line = document.createElementNS(ns, 'polyline');
+  line.setAttribute('points', pts.map(p=>`${p.x},${p.y}`).join(' '));
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', '#4a90e2');
+  line.setAttribute('stroke-width', '4');
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('stroke-linejoin', 'round');
+  line.setAttribute('opacity', '0.65');
+  svgEl.appendChild(line);
+
+  for (const p of pts) {
+    const circle = document.createElementNS(ns, 'circle');
+    circle.setAttribute('cx', p.x);
+    circle.setAttribute('cy', p.y);
+    circle.setAttribute('r', '5');
+    circle.setAttribute('fill', '#4a90e2');
+    circle.setAttribute('opacity', '0.75');
+    svgEl.appendChild(circle);
+  }
+}
+
+// ── Found chips ───────────────────────────────────────────────────────────────
+function addChip(word, isSpangram) {
+  foundSec.style.display = '';
+  const chip = document.createElement('div');
+  chip.className = 'chip ' + (isSpangram ? 'spangram' : 'theme');
+  chip.textContent = cap(word);
+  foundChips.appendChild(chip);
+}
+
+// ── Message bar ───────────────────────────────────────────────────────────────
+let msgTimer;
+function showMsg(text) {
+  msgBar.textContent = text;
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => { msgBar.textContent = ''; }, 3200);
+}
+
+// ── Win screen ────────────────────────────────────────────────────────────────
+function showWin() {
+  const secs = Math.floor((Date.now() - S.startTime) / 1000);
+  const t = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
+  document.getElementById('win-sub').textContent =
+    `You found all the words for "${PUZZLE.theme}"`;
+  document.getElementById('win-stats').innerHTML =
+    `<strong>Time:</strong> ${t}<br><strong>Hints used:</strong> ${S.hintsUsed}`;
+  winOverlay.classList.add('show');
+  confetti();
+}
+
+shareBtn.addEventListener('click', () => {
+  const secs = Math.floor((Date.now() - S.startTime) / 1000);
+  const t = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
+  const txt = `I solved the Strands puzzle "${PUZZLE.theme}" in ${t} with ${S.hintsUsed} hint${S.hintsUsed!==1?'s':''}! 🎉\n${location.href}`;
+  if (navigator.share) {
+    navigator.share({ text: txt }).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(txt).then(() => {
+      shareBtn.textContent = 'Copied!';
+      setTimeout(() => { shareBtn.textContent = 'Share Result'; }, 2000);
+    });
+  }
+});
+
+// ── Confetti ──────────────────────────────────────────────────────────────────
+function confetti() {
+  const colors = ['#4a90e2','#e8a020','#e25555','#55c87a','#a855e2'];
+  for (let i = 0; i < 50; i++) {
+    const p = document.createElement('div');
+    const size = 6 + Math.random() * 6;
+    const left = Math.random() * 100;
+    const delay = Math.random() * 0.6;
+    const dur   = 1.5 + Math.random() * 1.5;
+    const dx    = (Math.random() - 0.5) * 180;
+    const rot   = Math.random() * 720;
+    p.style.cssText = `
+      position:fixed; width:${size}px; height:${size}px;
+      border-radius:${Math.random()>0.5?'50%':'2px'};
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      left:${left}vw; top:-12px; z-index:200; pointer-events:none;
+      animation: cf ${dur}s ${delay}s ease-in forwards;
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), (dur + delay + 0.1) * 1000);
+  }
+}
+const cfStyle = document.createElement('style');
+cfStyle.textContent = `@keyframes cf { to { top:110vh; opacity:0; transform:translateX(var(--dx,80px)) rotate(720deg); } }`;
+document.head.appendChild(cfStyle);
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function cap(s) { return s.charAt(0) + s.slice(1).toLowerCase(); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+refreshHintUI();
+</script>
+</body>
+</html>

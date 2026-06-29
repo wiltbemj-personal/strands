@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strands Puzzles</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #faf8f4;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    p  { color: #888; font-size: 14px; margin-bottom: 24px; }
+    .puzzle-list { display: flex; flex-direction: column; gap: 12px; }
+    .puzzle-card {
+      display: block;
+      background: white;
+      border: 1px solid #e0d8cc;
+      border-radius: 14px;
+      padding: 16px 18px;
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 0.15s;
+    }
+    .puzzle-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+    .puzzle-card h2 { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+    .puzzle-card span { font-size: 13px; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Strands</h1>
+  <p>Custom word puzzles</p>
+  <div class="puzzle-list">
+    <a class="puzzle-card" href="puzzles/moms_birthday.html">
+      <h2>Words That Describe Mom</h2>
+      <span>Mom's Birthday</span>
+    </a>
+    <!-- Add more puzzles here as you create them -->
+  </div>
+</body>
+</html>
