@@ -1,0 +1,20 @@
+# Strands puzzle config — Helen's Birthday
+# Run: python generate_puzzle.py puzzles/helens_birthday.yaml
+
+theme: "Helen's Birthday"
+
+spangram: "SHERLOCK"
+
+# SHERLOCK(8) + DOLPHIN(7) + SHAW(4) + BIRTHDAY(8) + BIRD(4) + EIGHTY(6)
+#   + FAMILY(6) + CARDS(5) = 48
+words:
+  - DOLPHIN
+  - SHAW
+  - BIRTHDAY
+  - BIRD
+  - EIGHTY
+  - FAMILY
+  - CARDS
+
+author: "Your Name"
+date: "Helen's Birthday"
