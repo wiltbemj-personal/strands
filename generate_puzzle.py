@@ -744,6 +744,7 @@ const WORD_SET = new Set(__COMMON_WORDS_JSON__);
 // ── Constants ────────────────────────────────────────────────────────────────
 const ROWS = 6, COLS = 8;
 const CREDITS_PER_HINT = 3;
+const MIN_HINT_WORD_LEN = 4;
 
 // ── State ────────────────────────────────────────────────────────────────────
 const S = {
@@ -883,8 +884,8 @@ function submit() {
     return;
   }
 
-  // Non-theme dictionary word → hint credit
-  if (WORD_SET.has(word) && !S.foundWords.has(word)) {
+  // Non-theme dictionary word → hint credit (must meet minimum length)
+  if (word.length >= MIN_HINT_WORD_LEN && WORD_SET.has(word) && !S.foundWords.has(word)) {
     nonThemeFound(word);
     return;
   }
@@ -961,37 +962,54 @@ hintBtn.addEventListener('click', () => {
 });
 
 // ── SVG connector ─────────────────────────────────────────────────────────────
-function drawConnector() {
-  svgEl.innerHTML = '';
-  if (S.sel.length < 2) return;
+const ns = 'http://www.w3.org/2000/svg';
 
+function cellsToPoints(cellList) {
   const wRect = document.getElementById('grid-wrap').getBoundingClientRect();
-  const pts = S.sel.map(({r,c}) => {
+  return cellList.map(({r,c}) => {
     const rect = cellEls[`${r},${c}`].getBoundingClientRect();
     return { x: rect.left + rect.width/2 - wRect.left,
              y: rect.top  + rect.height/2 - wRect.top };
   });
+}
 
-  const ns = 'http://www.w3.org/2000/svg';
-
+function drawLine(pts, color, opacity, width) {
+  if (pts.length < 2) return;
   const line = document.createElementNS(ns, 'polyline');
   line.setAttribute('points', pts.map(p=>`${p.x},${p.y}`).join(' '));
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#4a90e2');
-  line.setAttribute('stroke-width', '4');
+  line.setAttribute('stroke', color);
+  line.setAttribute('stroke-width', width);
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('stroke-linejoin', 'round');
-  line.setAttribute('opacity', '0.65');
+  line.setAttribute('opacity', opacity);
   svgEl.appendChild(line);
 
   for (const p of pts) {
     const circle = document.createElementNS(ns, 'circle');
     circle.setAttribute('cx', p.x);
     circle.setAttribute('cy', p.y);
-    circle.setAttribute('r', '5');
-    circle.setAttribute('fill', '#4a90e2');
-    circle.setAttribute('opacity', '0.75');
+    circle.setAttribute('r', width * 1.25);
+    circle.setAttribute('fill', color);
+    circle.setAttribute('opacity', opacity);
     svgEl.appendChild(circle);
+  }
+}
+
+function drawConnector() {
+  svgEl.innerHTML = '';
+
+  // Permanent lines for already-found words
+  for (const word of S.foundWords) {
+    const data = PUZZLE.words[word];
+    if (!data) continue; // non-theme words have no fixed path to draw
+    const pts = cellsToPoints(data.cells.map(([r,c]) => ({r,c})));
+    drawLine(pts, data.is_spangram ? '#e8a020' : '#4a90e2', 0.9, 4);
+  }
+
+  // Live in-progress selection line
+  if (S.sel.length >= 2) {
+    drawLine(cellsToPoints(S.sel), '#4a90e2', 0.65, 4);
   }
 }
 
