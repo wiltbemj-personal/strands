@@ -260,14 +260,18 @@ def generate_puzzle(theme_words: list, spangram: str, max_attempts=2000):
     sp = spangram.upper()
     total_letters = sum(len(w) for w in words) + len(sp)
 
-    if total_letters > TOTAL_CELLS:
+    if total_letters != TOTAL_CELLS:
+        diff = TOTAL_CELLS - total_letters
+        direction = "add" if diff > 0 else "remove"
         raise ValueError(
-            f"Words total {total_letters} letters but the grid only has "
-            f"{TOTAL_CELLS} cells ({ROWS}×{COLS}). Shorten some words."
+            f"Words total {total_letters} letters but the grid has exactly "
+            f"{TOTAL_CELLS} cells ({ROWS}×{COLS}). Every cell must belong to a word "
+            f"(no random fill letters), so {direction} {abs(diff)} letter(s) "
+            f"across your words or spangram."
         )
 
     print(f"  Grid: {ROWS}×{COLS} = {TOTAL_CELLS} cells")
-    print(f"  Word letters: {total_letters}  Fill cells: {TOTAL_CELLS - total_letters}")
+    print(f"  Word letters: {total_letters} (exact fit, no fill letters needed)")
 
     for attempt in range(1, max_attempts + 1):
         occupied: set = set()
@@ -330,8 +334,8 @@ def load_common_words() -> list:
             for w in words_file.read_text().splitlines()
             if 3 <= len(w.strip()) <= 8 and w.strip().isalpha()
         )
-        return sorted(BUILTIN_WORDS | extra)
-    return sorted(BUILTIN_WORDS)
+        return sorted({w.upper() for w in BUILTIN_WORDS} | extra)
+    return sorted(w.upper() for w in BUILTIN_WORDS)
 
 
 # ── HTML rendering ────────────────────────────────────────────────────────────

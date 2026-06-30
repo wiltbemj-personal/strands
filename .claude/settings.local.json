@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python generate_puzzle.py puzzles/moms_birthday.yaml)"
+      "Bash(python generate_puzzle.py puzzles/moms_birthday.yaml)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
