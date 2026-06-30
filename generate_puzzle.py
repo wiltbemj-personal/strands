@@ -561,12 +561,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     #the-grid {
       position: absolute;
       inset: 0;
+      z-index: 2;
       display: grid;
       grid-template-columns: repeat(8, 1fr);
       gap: clamp(3px, 1.2vw, 6px);
       padding: clamp(2px, 0.8vw, 4px);
     }
     .cell {
+      position: relative;
       border-radius: 50%;
       background: var(--cell-bg);
       display: flex;
@@ -585,7 +587,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       background: var(--cell-sel);
       transform: scale(1.1);
       z-index: 2;
-      position: relative;
     }
     .cell.found-theme   { background: var(--blue); color: #fff; }
     .cell.found-spangram { background: var(--gold); color: #fff; }
@@ -619,7 +620,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       position: absolute;
       inset: 0;
       pointer-events: none;
-      z-index: 3;
+      z-index: 1;
       overflow: visible;
     }
 
