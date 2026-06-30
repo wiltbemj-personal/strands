@@ -751,7 +751,8 @@ const MIN_HINT_WORD_LEN = 4;
 const S = {
   sel: [],            // [{r,c}] currently selected
   dragging: false,
-  foundWords: new Set(),
+  foundWords: new Set(),       // theme words + spangram only
+  foundNonTheme: new Set(),    // non-theme dictionary words (hint credits)
   foundCells: new Set(),   // "r,c"
   hintCredits: 0,
   hintsUsed: 0,
@@ -886,7 +887,7 @@ function submit() {
   }
 
   // Non-theme dictionary word → hint credit (must meet minimum length)
-  if (word.length >= MIN_HINT_WORD_LEN && WORD_SET.has(word) && !S.foundWords.has(word)) {
+  if (word.length >= MIN_HINT_WORD_LEN && WORD_SET.has(word) && !S.foundNonTheme.has(word)) {
     nonThemeFound(word);
     return;
   }
@@ -912,7 +913,7 @@ function markFound(word, isSpangram) {
 }
 
 function nonThemeFound(word) {
-  S.foundWords.add(word);
+  S.foundNonTheme.add(word);
   S.hintCredits++;
   const cells = S.sel.map(({r,c}) => cellEls[`${r},${c}`]);
   animateCells(cells, 'non-flash', 560);
