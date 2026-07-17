@@ -1,7 +1,7 @@
 # Strands puzzle config — Helen's Birthday
 # Run: python generate_puzzle.py puzzles/helens_birthday.yaml
 
-theme: "Helen's Birthday"
+theme: "Words about Helen"
 
 spangram: "SHERLOCK"
 

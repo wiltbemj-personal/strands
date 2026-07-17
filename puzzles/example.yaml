@@ -1,7 +1,7 @@
 # Strands puzzle config — Mom's Birthday
-# Run: python generate_puzzle.py puzzles/moms_birthday.yaml
+# Run: python generate_puzzle.py puzzles/example.yaml
 
-theme: "Words That Describe Mom"
+theme: "Words that describe mothers"
 
 # The spangram must span the grid from left edge to right edge.
 # It should capture the overall theme in one word or phrase.
