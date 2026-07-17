@@ -1,0 +1,19 @@
+# Strands puzzle config — Life in Stitches
+# Run: python generate_puzzle.py puzzles/life_in_stitches.yaml
+
+theme: "Life in Stitches"
+
+spangram: "CROSSSTITCH"
+
+# Theme words. Total letters must be exactly 48.
+# CROSSSTITCH(11) + VENICE(6) + TEACHER(7) + BUFFALO(7) + WIFE(4) + RIESLING(8) + SMART(5) = 48
+words:
+  - VENICE
+  - TEACHER
+  - BUFFALO
+  - WIFE
+  - RIESLING
+  - SMART
+
+author: "Michael Wiltberger"
+date: "Life in Stitches"
